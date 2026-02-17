@@ -56,6 +56,7 @@ namespace Theme {
     const Color TextPrimary(255, 248, 250, 252);
     const Color TextSecondary(255, 160, 165, 180);
     const Color TextMuted(255, 100, 105, 120);
+    const Color TextDisabled(100, 150, 150, 160);
 
     const Color Accent(255, 99, 102, 241);
     const Color AccentMuted(80, 99, 102, 241);
@@ -68,6 +69,11 @@ namespace Theme {
     const Color BtnSecondaryHover(255, 55, 55, 70);
     const Color Disabled(100, 50, 50, 60);
 
+    const Color StatusActive(255, 34, 197, 94);
+    const Color StatusReady(255, 100, 105, 120);
+
+    const Color Scrollbar(100, 100, 105, 120);
+
     constexpr COLORREF EditText = RGB(248, 250, 252);
     constexpr COLORREF EditBg = RGB(24, 24, 32);
 }
@@ -76,12 +82,18 @@ namespace Layout {
     constexpr int MinWindowW = 420, MinWindowH = 480;
     constexpr int InitialW = 480, InitialH = 580;
     constexpr int Padding = 24;
-    constexpr int RadiusLg = 12, RadiusSm = 8;
-    constexpr int InputH = 44, ButtonH = 40, ItemH = 52;
-    constexpr int Gap = 16, GapSm = 12;
+    constexpr int RadiusLg = 12, RadiusSm = 8, RadiusXs = 6;
+    constexpr int ControlH = 44, ItemH = 52;
+    constexpr int Gap = 16, GapSm = 12, GapXs = 8;
     constexpr int AddBtnW = 100, RemoveBtnW = 140;
     constexpr float ListPadX = 14.f, ListPadY = 8.f;
     constexpr float EditInset = 12.f;
+
+    // Typography
+    constexpr int FontSizeTitle = 24;
+    constexpr int FontSizeBody = 13;
+    constexpr int FontSizeLabel = 11;
+    constexpr int FontSizeStatus = 12;
 }
 
 enum ControlID { ID_INPUT = 100, ID_BTN_ADD, ID_BTN_REMOVE, ID_TRAY = 1000 };
@@ -109,6 +121,15 @@ static Color LerpColor(const Color& a, const Color& b, float t) {
         };
     return Color(mix(a.GetA(), b.GetA()), mix(a.GetR(), b.GetR()),
         mix(a.GetG(), b.GetG()), mix(a.GetB(), b.GetB()));
+}
+
+static Color ApplyPressEffect(const Color& c, float press) {
+    if (press <= 0.01f) return c;
+    const float factor = 1.0f - (press * 0.15f);
+    return Color(c.GetA(),
+        static_cast<BYTE>(c.GetR() * factor),
+        static_cast<BYTE>(c.GetG() * factor),
+        static_cast<BYTE>(c.GetB() * factor));
 }
 
 static std::string ToLower(std::string s) {
@@ -169,36 +190,39 @@ struct Metrics {
         contentWidth = static_cast<float>(w - Layout::Padding * 2);
         float y = x;
 
-        titleY = y;  y += 32;
-        subtitleY = y;  y += 28;
-        lineY = y;  y += Layout::Gap + 8;
-        addLabelY = y;  y += 20;
+        titleY = y;  y += Layout::FontSizeTitle + Layout::GapXs;
+        subtitleY = y;  y += Layout::FontSizeBody + Layout::GapSm;
+        lineY = y;  y += Layout::Gap + Layout::GapXs;
+        addLabelY = y;  y += Layout::FontSizeLabel + Layout::GapXs;
 
         const float inputW = contentWidth - Layout::AddBtnW - Layout::GapSm;
-        inputRect = { x, y, inputW, static_cast<float>(Layout::InputH) };
+        inputRect = { x, y, inputW, static_cast<float>(Layout::ControlH) };
         addBtnRect = { x + inputW + Layout::GapSm, y,
                        static_cast<float>(Layout::AddBtnW),
-                       static_cast<float>(Layout::InputH) };
-        y += Layout::InputH + Layout::Gap;
+                       static_cast<float>(Layout::ControlH) };
+        y += Layout::ControlH + Layout::Gap;
 
-        listLabelY = y;  y += 24;
-        float listH = static_cast<float>(h) - y - Layout::Padding
-            - Layout::ButtonH - Layout::Gap - 60.f;
+        listLabelY = y;  y += Layout::FontSizeLabel + Layout::GapSm;
+
+        // Space below list: Gap + remove button + Gap + status bar + padding
+        const float spaceBelow = Layout::Gap * 2.f + Layout::ControlH * 2.f + Layout::Padding;
+        float listH = static_cast<float>(h) - y - spaceBelow;
+
         if (listH < 0.f) listH = 0.f;
         listRect = { x, y, contentWidth, listH };
         y += listH + Layout::Gap;
 
         removeBtnRect = { x, y, static_cast<float>(Layout::RemoveBtnW),
-                          static_cast<float>(Layout::ButtonH) };
-        y += Layout::ButtonH + Layout::Gap;
-        statusRect = { x, y, contentWidth, 44.f };
+                          static_cast<float>(Layout::ControlH) };
+        y += Layout::ControlH + Layout::Gap;
+        statusRect = { x, y, contentWidth, static_cast<float>(Layout::ControlH) };
     }
 
     void GetEditPosition(int& ex, int& ey, int& ew, int& eh) const {
         ex = static_cast<int>(inputRect.X + Layout::EditInset);
         ey = static_cast<int>(inputRect.Y + Layout::EditInset);
         ew = static_cast<int>(inputRect.Width - Layout::EditInset * 2);
-        eh = 20;
+        eh = static_cast<int>(Layout::ControlH - Layout::EditInset * 2);
     }
 
     int VisibleListHeight() const {
@@ -330,7 +354,7 @@ struct App {
     }
 
     void CreateResources() {
-        hFont = CreateFontA(14, 0, 0, 0, FW_NORMAL, 0, 0, 0,
+        hFont = CreateFontA(Layout::FontSizeBody + 1, 0, 0, 0, FW_NORMAL, 0, 0, 0,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
             CLEARTYPE_QUALITY, DEFAULT_PITCH, "Segoe UI");
         hEditBrush = CreateSolidBrush(Theme::EditBg);
@@ -564,11 +588,7 @@ namespace UI {
             : primary ? Theme::BtnPrimaryHover : Theme::BtnSecondaryHover;
 
         Color bg = LerpColor(bgNormal, bgHover, hover);
-        if (press > 0.1f)
-            bg = Color(bg.GetA(),
-                static_cast<BYTE>(bg.GetR() * 0.85f),
-                static_cast<BYTE>(bg.GetG() * 0.85f),
-                static_cast<BYTE>(bg.GetB() * 0.85f));
+        bg = ApplyPressEffect(bg, press);
 
         SolidBrush brush(bg);
         Draw::FillRoundRect(gfx, rect, static_cast<float>(Layout::RadiusSm), &brush);
@@ -580,8 +600,8 @@ namespace UI {
         }
 
         FontFamily ff(L"Segoe UI");
-        Gdiplus::Font font(&ff, 13, FontStyleBold, UnitPixel);
-        SolidBrush tb(enabled ? Theme::TextPrimary : Color(100, 150, 150, 160));
+        Gdiplus::Font font(&ff, static_cast<REAL>(Layout::FontSizeBody), FontStyleBold, UnitPixel);
+        SolidBrush tb(enabled ? Theme::TextPrimary : Theme::TextDisabled);
         StringFormat sf;
         Draw::SetupCentered(sf);
         gfx.DrawString(text, -1, &font, rect, &sf, &tb);
@@ -592,13 +612,13 @@ namespace UI {
     {
         if (selected) {
             SolidBrush bg(Theme::AccentMuted);
-            Draw::FillRoundRect(gfx, rect, 8, &bg);
+            Draw::FillRoundRect(gfx, rect, static_cast<float>(Layout::RadiusSm), &bg);
             Pen border(Theme::Accent, 1.5f);
-            Draw::StrokeRoundRect(gfx, rect, 8, &border);
+            Draw::StrokeRoundRect(gfx, rect, static_cast<float>(Layout::RadiusSm), &border);
         }
         else if (hovered) {
             SolidBrush bg(Theme::BgCardHover);
-            Draw::FillRoundRect(gfx, rect, 8, &bg);
+            Draw::FillRoundRect(gfx, rect, static_cast<float>(Layout::RadiusSm), &bg);
         }
 
         // Icon circle
@@ -607,10 +627,10 @@ namespace UI {
         const RectF iconR(ix, iy, iconSz, iconSz);
 
         SolidBrush iconBg(selected ? Theme::Accent : Theme::BgSecondary);
-        Draw::FillRoundRect(gfx, iconR, 8, &iconBg);
+        Draw::FillRoundRect(gfx, iconR, static_cast<float>(Layout::RadiusSm), &iconBg);
 
         FontFamily ff(L"Segoe UI");
-        Gdiplus::Font iconFont(&ff, 14, FontStyleBold, UnitPixel);
+        Gdiplus::Font iconFont(&ff, static_cast<REAL>(Layout::FontSizeBody + 1), FontStyleBold, UnitPixel);
         const wchar_t letter[2] = {
             name.empty() ? L'G' : static_cast<wchar_t>(toupper(name[0])), 0
         };
@@ -622,7 +642,7 @@ namespace UI {
         // Name text
         const float tx = ix + iconSz + 12;
         RectF textR(tx, rect.Y, rect.Width - tx + rect.X - 12, rect.Height);
-        Gdiplus::Font nameFont(&ff, 13, FontStyleRegular, UnitPixel);
+        Gdiplus::Font nameFont(&ff, static_cast<REAL>(Layout::FontSizeBody), FontStyleRegular, UnitPixel);
         SolidBrush nameBrush(Theme::TextPrimary);
         StringFormat tf;
         Draw::SetupLeftCentered(tf);
@@ -642,16 +662,19 @@ namespace UI {
 
         if (active && pulse > 0) {
             const float glow = dotSz + 8 * pulse;
-            SolidBrush gb(Color(static_cast<BYTE>(60 * pulse), 250, 176, 5));
+            SolidBrush gb(Color(static_cast<BYTE>(60 * pulse),
+                Theme::StatusActive.GetR(),
+                Theme::StatusActive.GetG(),
+                Theme::StatusActive.GetB()));
             gfx.FillEllipse(&gb, RectF(dx - (glow - dotSz) / 2,
                 dy - (glow - dotSz) / 2, glow, glow));
         }
 
-        SolidBrush dotBrush(active ? Theme::Warning : Theme::Success);
+        SolidBrush dotBrush(active ? Theme::StatusActive : Theme::StatusReady);
         gfx.FillEllipse(&dotBrush, RectF(dx, dy, dotSz, dotSz));
 
         FontFamily ff(L"Segoe UI");
-        Gdiplus::Font font(&ff, 12, FontStyleRegular, UnitPixel);
+        Gdiplus::Font font(&ff, static_cast<REAL>(Layout::FontSizeStatus), FontStyleRegular, UnitPixel);
         RectF tr(dx + dotSz + 12, rect.Y, rect.Width - dx - dotSz - 24, rect.Height);
         SolidBrush tb(Theme::TextSecondary);
         StringFormat sf;
@@ -670,18 +693,19 @@ namespace Painter {
     void Header(Graphics& gfx, const Metrics& m) {
         FontFamily ff(L"Segoe UI");
 
-        Gdiplus::Font titleFont(&ff, 24, FontStyleBold, UnitPixel);
+        Gdiplus::Font titleFont(&ff, static_cast<REAL>(Layout::FontSizeTitle), FontStyleBold, UnitPixel);
         SolidBrush titleBrush(Theme::TextPrimary);
         gfx.DrawString(L"Game Booster", -1, &titleFont,
             PointF(m.x, m.titleY), &titleBrush);
 
-        Gdiplus::Font subFont(&ff, 13, FontStyleRegular, UnitPixel);
+        Gdiplus::Font subFont(&ff, static_cast<REAL>(Layout::FontSizeBody), FontStyleRegular, UnitPixel);
         SolidBrush subBrush(Theme::TextSecondary);
         gfx.DrawString(L"Optimize your system for gaming", -1, &subFont,
             PointF(m.x, m.subtitleY), &subBrush);
 
+        Color accentTransparent(0, Theme::Accent.GetR(), Theme::Accent.GetG(), Theme::Accent.GetB());
         LinearGradientBrush lb(PointF(m.x, m.lineY), PointF(m.x + 80, m.lineY),
-            Theme::Accent, Color(0, 99, 102, 241));
+            Theme::Accent, accentTransparent);
         Pen lp(&lb, 3);
         lp.SetStartCap(LineCapRound);
         lp.SetEndCap(LineCapRound);
@@ -690,7 +714,7 @@ namespace Painter {
 
     void AddSection(Graphics& gfx, const Metrics& m) {
         FontFamily ff(L"Segoe UI");
-        Gdiplus::Font labelFont(&ff, 11, FontStyleBold, UnitPixel);
+        Gdiplus::Font labelFont(&ff, static_cast<REAL>(Layout::FontSizeLabel), FontStyleBold, UnitPixel);
         SolidBrush labelBrush(Theme::TextMuted);
         gfx.DrawString(L"ADD GAME", -1, &labelFont,
             PointF(m.x, m.addLabelY), &labelBrush);
@@ -714,7 +738,7 @@ namespace Painter {
 
     void GameList(Graphics& gfx, const Metrics& m) {
         FontFamily ff(L"Segoe UI");
-        Gdiplus::Font labelFont(&ff, 11, FontStyleBold, UnitPixel);
+        Gdiplus::Font labelFont(&ff, static_cast<REAL>(Layout::FontSizeLabel), FontStyleBold, UnitPixel);
         SolidBrush labelBrush(Theme::TextMuted);
         gfx.DrawString(L"MONITORED GAMES", -1, &labelFont,
             PointF(m.x, m.listLabelY), &labelBrush);
@@ -730,7 +754,7 @@ namespace Painter {
         if (badgeW < 22.f) badgeW = 22.f;
         RectF badgeR(m.x + 130, m.listLabelY - 2, badgeW, 18);
         SolidBrush badgeBg(Theme::AccentMuted);
-        Draw::FillRoundRect(gfx, badgeR, 6, &badgeBg);
+        Draw::FillRoundRect(gfx, badgeR, static_cast<float>(Layout::RadiusXs), &badgeBg);
         SolidBrush badgeText(Theme::Accent);
         StringFormat cf;
         Draw::SetupCentered(cf);
@@ -746,7 +770,7 @@ namespace Painter {
 
         // Empty state
         if (g_app.games.empty()) {
-            Gdiplus::Font ef(&ff, 13, FontStyleItalic, UnitPixel);
+            Gdiplus::Font ef(&ff, static_cast<REAL>(Layout::FontSizeBody), FontStyleItalic, UnitPixel);
             SolidBrush eb(Theme::TextMuted);
             StringFormat esf;
             Draw::SetupCentered(esf);
@@ -785,7 +809,7 @@ namespace Painter {
             const float barY = clip.Y + pos * (visibleH - barH);
             RectF barR(m.listRect.X + m.listRect.Width - Layout::ListPadX + 2,
                 barY, 4, barH);
-            SolidBrush sb(Color(100, 100, 105, 120));
+            SolidBrush sb(Theme::Scrollbar);
             Draw::FillRoundRect(gfx, barR, 2, &sb);
         }
     }
