@@ -86,7 +86,7 @@ namespace Layout {
     constexpr int ControlH = 44, ItemH = 52;
     constexpr int Gap = 16, GapSm = 12, GapXs = 8;
     constexpr int AddBtnW = 100, RemoveBtnW = 140;
-    constexpr float ListPadX = 14.f, ListPadY = 8.f;
+    constexpr float ListPadX = 12.f, ListPadY = 12.f;
     constexpr float EditInset = 12.f;
 
     // Typography
@@ -623,7 +623,7 @@ namespace UI {
 
         // Icon circle
         constexpr float iconSz = 32.f;
-        const float ix = rect.X + 12, iy = rect.Y + (rect.Height - iconSz) / 2;
+        const float ix = rect.X + static_cast<float>(Layout::GapSm), iy = rect.Y + (rect.Height - iconSz) / 2;
         const RectF iconR(ix, iy, iconSz, iconSz);
 
         SolidBrush iconBg(selected ? Theme::Accent : Theme::BgSecondary);
@@ -640,8 +640,8 @@ namespace UI {
         gfx.DrawString(letter, 1, &iconFont, iconR, &cf, &letterBrush);
 
         // Name text
-        const float tx = ix + iconSz + 12;
-        RectF textR(tx, rect.Y, rect.Width - tx + rect.X - 12, rect.Height);
+        const float tx = ix + iconSz + static_cast<float>(Layout::GapSm);
+        RectF textR(tx, rect.Y, rect.Width - tx + rect.X - static_cast<float>(Layout::GapSm), rect.Height);
         Gdiplus::Font nameFont(&ff, static_cast<REAL>(Layout::FontSizeBody), FontStyleRegular, UnitPixel);
         SolidBrush nameBrush(Theme::TextPrimary);
         StringFormat tf;
@@ -658,7 +658,7 @@ namespace UI {
         Draw::StrokeRoundRect(gfx, rect, static_cast<float>(Layout::RadiusSm), &border);
 
         constexpr float dotSz = 10.f;
-        const float dx = rect.X + 16, dy = rect.Y + (rect.Height - dotSz) / 2;
+        const float dx = rect.X + static_cast<float>(Layout::Gap), dy = rect.Y + (rect.Height - dotSz) / 2;
 
         if (active && pulse > 0) {
             const float glow = dotSz + 8 * pulse;
@@ -675,7 +675,8 @@ namespace UI {
 
         FontFamily ff(L"Segoe UI");
         Gdiplus::Font font(&ff, static_cast<REAL>(Layout::FontSizeStatus), FontStyleRegular, UnitPixel);
-        RectF tr(dx + dotSz + 12, rect.Y, rect.Width - dx - dotSz - 24, rect.Height);
+        RectF tr(dx + dotSz + static_cast<float>(Layout::GapSm), rect.Y,
+            rect.Width - dx - dotSz - static_cast<float>(Layout::GapSm + Layout::Gap), rect.Height);
         SolidBrush tb(Theme::TextSecondary);
         StringFormat sf;
         Draw::SetupLeftCentered(sf);
@@ -807,8 +808,8 @@ namespace Painter {
             const float maxS = static_cast<float>(totalH - visibleH);
             const float pos = maxS > 0 ? g_app.scrollY / maxS : 0.f;
             const float barY = clip.Y + pos * (visibleH - barH);
-            RectF barR(m.listRect.X + m.listRect.Width - Layout::ListPadX + 2,
-                barY, 4, barH);
+            RectF barR(m.listRect.X + m.listRect.Width - 8.f,
+                barY, 4.f, barH);
             SolidBrush sb(Theme::Scrollbar);
             Draw::FillRoundRect(gfx, barR, 2, &sb);
         }
